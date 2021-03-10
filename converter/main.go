@@ -10,7 +10,18 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/cheggaaa/pb/v3"
 )
+
+func intInSlice(a int, list []int) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
 
 func convertToBin(midiFile, miditonesBinFile string) {
 	midiBinCmd := exec.Command("miditones.exe", "-b", midiFile)
@@ -38,10 +49,14 @@ func convertToTxt(midiFile, miditonesBinFile, miditonesTxtFile string) {
 		fmt.Println("Unable to find TXT file")
 		os.Exit(1)
 	}
-
+	if err := os.Remove(miditonesBinFile); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
 
 func main() {
+	progressBar := pb.Simple.Start(4)
 	guitarStrings := map[string]int{
 		"4E": 0,
 		"B":  1,
@@ -51,7 +66,8 @@ func main() {
 		"3E": 5,
 	}
 
-	inputMidi := flag.String("file", "DEFAULT", "song_name.mid")
+	inputMidi := flag.String("file", "DEFAULT", "Path to MIDI file.")
+	zeroDelay := flag.Int("zeroDelay", 1, "Delay between notes that get played at the same time.")
 
 	flag.Parse()
 
@@ -64,26 +80,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	progressBar.Increment()
+
 	miditonesBinFile := strings.ReplaceAll(filepath.Base(*inputMidi), ".mid", ".bin")
 	miditonesTxtFile := strings.ReplaceAll(filepath.Base(*inputMidi), ".mid", ".txt")
-
-	fmt.Println("Converting to BIN")
+	songFilePath := strings.ReplaceAll(filepath.Base(*inputMidi), ".mid", ".song")
 
 	convertToBin(*inputMidi, miditonesBinFile)
 
-	fmt.Println("Done.")
-	fmt.Println("Converting to TXT")
+	progressBar.Increment()
 
 	convertToTxt(*inputMidi, miditonesBinFile, miditonesTxtFile)
 
-	fmt.Println("Done.")
+	progressBar.Increment()
 
 	txtFile, err := os.Open(miditonesTxtFile)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	defer txtFile.Close()
+
+	songFile, _ := os.Create(songFilePath)
 
 	scanner := bufio.NewScanner(txtFile)
 	tableRead := false
@@ -91,14 +108,15 @@ func main() {
 
 	for scanner.Scan() {
 		text := scanner.Text()
-		if strings.HasSuffix(text, " used.") {
-			tableRead = false
-		}
 		if len(text) == 0 {
 			continue
 		}
+		if strings.HasSuffix(text, " used.") {
+			tableRead = false
+		}
 		// TODO: Add dedupe output to .song format
 		if tableRead {
+			// Splice data to notes and delay
 			splitData := strings.Fields(text)
 			for i := 0; i < len(splitData); i++ {
 				if strings.HasSuffix(splitData[i], ":") {
@@ -106,21 +124,52 @@ func main() {
 					break
 				}
 			}
+
+			// Add notes to de duplicated data
+			var dedupeData []int
 			for i := 0; i < len(splitData)-1; i++ {
-				fmt.Print(guitarStrings[noteRegex.FindString(splitData[i])])
-				fmt.Print(" ")
+				servoNum := guitarStrings[noteRegex.FindString(splitData[i])]
+				if !intInSlice(servoNum, dedupeData) {
+					dedupeData = append(dedupeData, servoNum)
+				}
 			}
+
+			// Extract delay and convert to int ms
 			delayMS, _ := strconv.ParseFloat(splitData[len(splitData)-1], 8)
 			delayMS = delayMS * 1000
-			fmt.Printf("%v ms\n", delayMS)
+
+			// Convert array into song file lines
+			for i, note := range dedupeData {
+				if i == len(dedupeData)-1 {
+					songFile.WriteString(fmt.Sprintf("%v:%v\n", note, delayMS))
+				} else {
+					songFile.WriteString(fmt.Sprintf("%v:%v\n", note, *zeroDelay))
+				}
+			}
+
 		}
 		if strings.HasSuffix(text, "bytestream code") {
 			tableRead = true
 		}
 	}
+	progressBar.Increment()
+
 	if err := scanner.Err(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
+	// Clean up
+	if err := txtFile.Close(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	if err := songFile.Close(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	if err := os.Remove(miditonesTxtFile); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	progressBar.Finish()
 }

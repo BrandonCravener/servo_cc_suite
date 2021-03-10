@@ -3,6 +3,8 @@ module player
 go 1.15
 
 require (
+	github.com/cheggaaa/pb v1.0.29 // indirect
+	github.com/cheggaaa/pb/v3 v3.0.6
 	github.com/creack/goselect v0.1.1 // indirect
 	github.com/google/logger v1.1.0
 	github.com/gorilla/mux v1.8.0 // indirect
