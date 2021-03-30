@@ -2,8 +2,8 @@
 
 // Config
 int servoPins[] = {2, 3, 4, 5, 6, 7};
-int startingDEG[] = {80, 80, 80, 80, 80, 80};
-int endingDEG[] = {100, 100, 100, 100, 100, 100};
+int startingDEG[] = {65, 75, 60, 65, 84, 65};
+int endingDEG[] = {92, 105, 95, 105, 105, 105};
 
 // DO NOT TOUCH ANYTHING BELOW HERE
 Servo servos[6];

@@ -24,7 +24,7 @@ func intInSlice(a int, list []int) bool {
 }
 
 func convertToBin(midiFile, miditonesBinFile string) {
-	midiBinCmd := exec.Command("miditones.exe", "-b", midiFile)
+	midiBinCmd := exec.Command("miditones.exe", "-b", "-s2", "-delaymin=10", "-notemin=100", midiFile)
 	err := midiBinCmd.Run()
 	if err != nil {
 		fmt.Println(err)
@@ -133,18 +133,23 @@ func main() {
 					dedupeData = append(dedupeData, servoNum)
 				}
 			}
-
 			// Extract delay and convert to int ms
 			delayMS, _ := strconv.ParseFloat(splitData[len(splitData)-1], 8)
 			delayMS = delayMS * 1000
 
+			// fmt.Printf("%v|%v\n", text, delayMS)
+			// fmt.Println(dedupeData)
 			// Convert array into song file lines
-			for i, note := range dedupeData {
-				if i == len(dedupeData)-1 {
-					songFile.WriteString(fmt.Sprintf("%v:%v\n", note, delayMS))
-				} else {
-					songFile.WriteString(fmt.Sprintf("%v:%v\n", note, *zeroDelay))
+			if len(dedupeData) > 0 {
+				for i, note := range dedupeData {
+					if i == len(dedupeData)-1 {
+						songFile.WriteString(fmt.Sprintf("%v:%v\n", note, delayMS))
+					} else {
+						songFile.WriteString(fmt.Sprintf("%v:%v\n", note, *zeroDelay))
+					}
 				}
+			} else {
+				songFile.WriteString(fmt.Sprintf("99:%v\n", delayMS))
 			}
 
 		}
